@@ -35,7 +35,7 @@ The API Sandbox is a comprehensive training platform that provides students with
 
 1. Clone the repository:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/timfewi/trainings-api-hub.git
 cd trainings-api-hub
 ```
 
