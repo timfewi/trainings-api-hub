@@ -15,7 +15,7 @@
     "db:seed": "npx prisma db seed"
   },
   "dependencies": {
-    "@prisma/client": "^5.8.1",
+    "@prisma/client": "^5.22.0",
     "@trainings-api-hub/shared": "file:../../shared",
     "@types/dockerode": "^3.3.42",
     "bcryptjs": "^2.4.3",

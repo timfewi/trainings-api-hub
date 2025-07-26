@@ -48,7 +48,7 @@ export class DockerService {
 
   constructor() {
     this.docker = new Docker({
-      socketPath: process.platform === 'win32' ? '//./pipe/docker_engine' : '/var/run/docker.sock'
+      socketPath: process.platform === 'win32' ? '//./pipe/docker_engine' : '/var/run/docker.sock',
     });
   }
 
@@ -74,7 +74,7 @@ export class DockerService {
 
       // Allocate available port
       const port = await this.allocatePort();
-      
+
       // Generate container name
       const timestamp = Date.now();
       const containerName = `api-instance-${config.userId}-${timestamp}`;
@@ -88,33 +88,33 @@ export class DockerService {
           `PORT=${this.CONTAINER_PORT}`,
           `DATA_THEME=${config.dataTheme || 'electronics'}`,
           `PRODUCT_COUNT=${config.productCount || 50}`,
-          `CORS_ORIGIN=${config.enableCors ? '*' : 'http://localhost:4200'}`
+          `CORS_ORIGIN=${config.enableCors ? '*' : 'http://localhost:4200'}`,
         ],
         ExposedPorts: {
-          [`${this.CONTAINER_PORT}/tcp`]: {}
+          [`${this.CONTAINER_PORT}/tcp`]: {},
         },
         HostConfig: {
           PortBindings: {
-            [`${this.CONTAINER_PORT}/tcp`]: [{ HostPort: port.toString() }]
+            [`${this.CONTAINER_PORT}/tcp`]: [{ HostPort: port.toString() }],
           },
           RestartPolicy: {
-            Name: 'unless-stopped'
+            Name: 'unless-stopped',
           },
           Memory: 256 * 1024 * 1024, // 256MB memory limit
-          CpuShares: 512 // CPU limit
+          CpuShares: 512, // CPU limit
         },
         Healthcheck: {
           Test: [`CMD`, `curl`, `-f`, `http://localhost:${this.CONTAINER_PORT}/health`],
           Interval: 30000000000, // 30 seconds in nanoseconds
-          Timeout: 10000000000,   // 10 seconds in nanoseconds
+          Timeout: 10000000000, // 10 seconds in nanoseconds
           Retries: 3,
-          StartPeriod: 30000000000 // 30 seconds in nanoseconds
+          StartPeriod: 30000000000, // 30 seconds in nanoseconds
         },
         Labels: {
           'api-hub.user-id': config.userId,
           'api-hub.service': 'dummy-api',
-          'api-hub.created': new Date().toISOString()
-        }
+          'api-hub.created': new Date().toISOString(),
+        },
       };
 
       // Create container
@@ -132,12 +132,13 @@ export class DockerService {
         containerName,
         port,
         url,
-        status: 'created'
+        status: 'created',
       };
-
     } catch (error) {
       logger.error('Failed to create container:', error);
-      throw new Error(`Container creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Container creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -147,14 +148,16 @@ export class DockerService {
   async startContainer(containerId: string): Promise<void> {
     try {
       logger.info(`Starting container: ${containerId}`);
-      
+
       const container = this.docker.getContainer(containerId);
       await container.start();
-      
+
       logger.info(`Container started successfully: ${containerId}`);
     } catch (error) {
       logger.error(`Failed to start container ${containerId}:`, error);
-      throw new Error(`Container start failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Container start failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -164,14 +167,16 @@ export class DockerService {
   async stopContainer(containerId: string): Promise<void> {
     try {
       logger.info(`Stopping container: ${containerId}`);
-      
+
       const container = this.docker.getContainer(containerId);
       await container.stop({ t: 10 }); // 10 second grace period
-      
+
       logger.info(`Container stopped successfully: ${containerId}`);
     } catch (error) {
       logger.error(`Failed to stop container ${containerId}:`, error);
-      throw new Error(`Container stop failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Container stop failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -181,9 +186,9 @@ export class DockerService {
   async removeContainer(containerId: string): Promise<void> {
     try {
       logger.info(`Removing container: ${containerId}`);
-      
+
       const container = this.docker.getContainer(containerId);
-      
+
       // Stop container first if it's running
       try {
         const containerInfo = await container.inspect();
@@ -197,11 +202,13 @@ export class DockerService {
 
       // Remove container
       await container.remove({ force: true });
-      
+
       logger.info(`Container removed successfully: ${containerId}`);
     } catch (error) {
       logger.error(`Failed to remove container ${containerId}:`, error);
-      throw new Error(`Container removal failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Container removal failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -226,16 +233,15 @@ export class DockerService {
         id: containerId,
         status: containerInfo.State.Status,
         running: containerInfo.State.Running,
-        port
+        port,
       };
-
     } catch (error) {
       logger.error(`Failed to get container status ${containerId}:`, error);
       return {
         id: containerId,
         status: 'error',
         running: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -249,12 +255,12 @@ export class DockerService {
       const usedInstances = await prisma.apiInstance.findMany({
         where: {
           status: {
-            in: ['CREATING', 'RUNNING']
-          }
+            in: ['CREATING', 'RUNNING'],
+          },
         },
         select: {
-          port: true
-        }
+          port: true,
+        },
       });
 
       const usedPorts = new Set(usedInstances.map((instance: { port: number }) => instance.port));
@@ -272,10 +278,11 @@ export class DockerService {
       }
 
       throw new Error(`No available ports in range ${this.MIN_PORT}-${this.MAX_PORT}`);
-
     } catch (error) {
       logger.error('Failed to allocate port:', error);
-      throw new Error(`Port allocation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Port allocation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -285,7 +292,7 @@ export class DockerService {
   private async isPortInUse(port: number): Promise<boolean> {
     try {
       const containers = await this.docker.listContainers({ all: true });
-      
+
       for (const containerInfo of containers) {
         if (containerInfo.Ports) {
           for (const portInfo of containerInfo.Ports) {
@@ -295,7 +302,7 @@ export class DockerService {
           }
         }
       }
-      
+
       return false;
     } catch (error) {
       logger.error('Failed to check port usage:', error);
@@ -314,15 +321,17 @@ export class DockerService {
       const containers = await this.docker.listContainers({
         all: true,
         filters: {
-          label: ['api-hub.service=dummy-api']
-        }
+          label: ['api-hub.service=dummy-api'],
+        },
       });
 
       // Get all container IDs from database
       const dbInstances = await prisma.apiInstance.findMany({
-        select: { containerId: true }
+        select: { containerId: true },
       });
-      const dbContainerIds = new Set(dbInstances.map((instance: { containerId: string }) => instance.containerId));
+      const dbContainerIds = new Set(
+        dbInstances.map((instance: { containerId: string }) => instance.containerId)
+      );
 
       // Remove containers not in database
       for (const containerInfo of containers) {
@@ -352,13 +361,15 @@ export class DockerService {
         stdout: true,
         stderr: true,
         tail,
-        timestamps: true
+        timestamps: true,
       });
 
       return logs.toString();
     } catch (error) {
       logger.error(`Failed to get logs for container ${containerId}:`, error);
-      throw new Error(`Failed to get container logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get container logs: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 }
