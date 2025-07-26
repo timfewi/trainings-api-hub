@@ -307,7 +307,13 @@ export class DockerService {
   }
 
   /**
-   * Check if a port is currently in use by Docker containers
+   * Checks if a given port is currently in use by any Docker container.
+   * 
+   * This method iterates through all Docker containers and their exposed ports
+   * to determine if the specified port is already allocated.
+   * 
+   * @param {number} port - The port number to check.
+   * @returns {Promise<boolean>} - A promise that resolves to `true` if the port is in use, otherwise `false`.
    */
   private async isPortInUse(port: number): Promise<boolean> {
     try {
