@@ -35,6 +35,9 @@ export function productRoutes(dataService: DataService): Router {
   router.get('/:id', (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      if (!id || id.trim().length === 0) {
+        throw new ApiError(400, 'Product ID is required');
+      }
       const product = dataService.getProductById(id);
 
       if (!product) {
@@ -60,6 +63,9 @@ export function productRoutes(dataService: DataService): Router {
   router.get('/category/:categoryId', (req: Request, res: Response) => {
     try {
       const { categoryId } = req.params;
+      if (!categoryId || categoryId.trim().length === 0) {
+        throw new ApiError(400, 'Category ID is required');
+      }
       const category = dataService.getCategoryById(categoryId);
 
       if (!category) {

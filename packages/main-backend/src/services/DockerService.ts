@@ -1,11 +1,5 @@
 // packages/main-backend/src/services/DockerService.ts
 
-/**
- * This module provides functionality for managing Docker containers that host API instances.
- * It includes the `DockerService` class, which encapsulates operations such as creating,
- * starting, stopping, and monitoring containers. Additionally, it exports a singleton
- * instance of the service (`dockerService`) for use throughout the application.
- */
 import Docker from 'dockerode';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
@@ -43,21 +37,7 @@ export interface CreateContainerConfig {
 }
 
 /**
- * DockerService is responsible for managing Docker containers that host API instances.
- * 
- * This service provides methods to initialize the Docker connection, create and manage
- * containers, and retrieve their statuses. It is designed to work with a predefined
- * Docker image and manages container ports dynamically within a specified range.
- * 
- * Key Methods:
- * - `initialize()`: Verifies the connection to the Docker daemon.
- * - `createContainer(config: CreateContainerConfig)`: Creates a new container based on the provided configuration.
- * - `getContainerStatus(containerId: string)`: Retrieves the status of a specific container.
- * - `stopContainer(containerId: string)`: Stops and removes a running container.
- * 
- * Usage:
- * - Import the singleton instance `dockerService` to interact with Docker containers.
- * - Ensure Docker is running and accessible before using this service.
+ * Docker service for managing API instance containers
  */
 export class DockerService {
   private docker: Docker;
@@ -307,13 +287,7 @@ export class DockerService {
   }
 
   /**
-   * Checks if a given port is currently in use by any Docker container.
-   * 
-   * This method iterates through all Docker containers and their exposed ports
-   * to determine if the specified port is already allocated.
-   * 
-   * @param {number} port - The port number to check.
-   * @returns {Promise<boolean>} - A promise that resolves to `true` if the port is in use, otherwise `false`.
+   * Check if a port is currently in use by Docker containers
    */
   private async isPortInUse(port: number): Promise<boolean> {
     try {

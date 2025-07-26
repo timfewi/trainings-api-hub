@@ -11,7 +11,7 @@ import {
   OrderStatus,
   DummyUser,
   Address,
-} from '@trainings-api-hub/shared';
+} from '../types';
 
 /**
  * In-memory data service for generating and managing fake e-commerce data
