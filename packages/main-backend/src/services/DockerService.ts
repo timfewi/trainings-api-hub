@@ -43,7 +43,21 @@ export interface CreateContainerConfig {
 }
 
 /**
- * Docker service for managing API instance containers
+ * DockerService is responsible for managing Docker containers that host API instances.
+ * 
+ * This service provides methods to initialize the Docker connection, create and manage
+ * containers, and retrieve their statuses. It is designed to work with a predefined
+ * Docker image and manages container ports dynamically within a specified range.
+ * 
+ * Key Methods:
+ * - `initialize()`: Verifies the connection to the Docker daemon.
+ * - `createContainer(config: CreateContainerConfig)`: Creates a new container based on the provided configuration.
+ * - `getContainerStatus(containerId: string)`: Retrieves the status of a specific container.
+ * - `stopContainer(containerId: string)`: Stops and removes a running container.
+ * 
+ * Usage:
+ * - Import the singleton instance `dockerService` to interact with Docker containers.
+ * - Ensure Docker is running and accessible before using this service.
  */
 export class DockerService {
   private docker: Docker;
