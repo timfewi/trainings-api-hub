@@ -3,7 +3,7 @@
 import { Router, Request, Response } from 'express';
 import { DataService } from '../services/DataService';
 import { ApiError } from '../middleware/errorHandler';
-import { Address } from '@trainings-api-hub/shared';
+import { Address } from '../types';
 
 interface CreateOrderRequest {
   shippingAddress: Address;
