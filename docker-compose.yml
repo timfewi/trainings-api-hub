@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: trainings-api-hub-db
+    environment:
+      POSTGRES_DB: trainings_api_hub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - trainings-network
+
+  # Redis (for session storage and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: trainings-api-hub-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - trainings-network
+
+  # Main Backend API
+  main-backend:
+    build:
+      context: ./packages/main-backend
+      dockerfile: Dockerfile
+    container_name: trainings-api-hub-backend
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/trainings_api_hub?schema=public
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./packages/main-backend:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - trainings-network
+
+  # Angular Frontend
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+    container_name: trainings-api-hub-frontend
+    environment:
+      - NODE_ENV=development
+      - API_URL=http://main-backend:3000
+    ports:
+      - '4200:4200'
+    volumes:
+      - ./packages/frontend:/app
+      - /app/node_modules
+    depends_on:
+      - main-backend
+    networks:
+      - trainings-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  trainings-network:
+    driver: bridge

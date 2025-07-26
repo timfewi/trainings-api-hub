@@ -1,0 +1,67 @@
+// packages/main-backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  firstName String
+  lastName  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  instances ApiInstance[]
+  sessions  UserSession[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+enum InstanceStatus {
+  CREATING
+  RUNNING
+  STOPPING
+  STOPPED
+  ERROR
+}
+
+model ApiInstance {
+  id          String         @id @default(uuid())
+  userId      String
+  containerId String         @unique
+  containerName String       @unique
+  url         String
+  port        Int
+  status      InstanceStatus @default(CREATING)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  stoppedAt   DateTime?
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_instances")
+}
