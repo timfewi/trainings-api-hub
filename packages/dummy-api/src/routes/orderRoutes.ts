@@ -40,6 +40,10 @@ export function orderRoutes(dataService: DataService): Router {
   router.get('/:id', (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+
+      if (!id || id.trim().length === 0) {
+        throw new ApiError(400, 'Order ID is required');
+      }
       const order = dataService.getOrderById(id);
 
       if (!order) {

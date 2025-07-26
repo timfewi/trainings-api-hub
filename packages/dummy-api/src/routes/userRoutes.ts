@@ -16,6 +16,11 @@ export function userRoutes(dataService: DataService): Router {
   router.get('/:id', (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+
+      if (!id || id.trim().length === 0) {
+        throw new ApiError(400, 'User ID is required');
+      }
+
       const user = dataService.getUserById(id);
 
       if (!user) {

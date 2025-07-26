@@ -106,8 +106,11 @@ export function cartRoutes(dataService: DataService): Router {
   router.delete('/items/:productId', (req: Request, res: Response) => {
     try {
       const { productId } = req.params;
+      if (!productId || productId.trim().length === 0) {
+        throw new ApiError(400, 'Invalid product ID');
+      }
+      
       const removedItem = dataService.removeFromCart(productId);
-
       if (!removedItem) {
         throw new ApiError(404, 'Cart item not found');
       }

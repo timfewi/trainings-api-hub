@@ -138,6 +138,10 @@ export class DataService {
     }
 
     const removedItem = cart.items.splice(itemIndex, 1)[0];
+    if (!removedItem || removedItem.quantity <= 0) {
+      return null;
+    }
+
     this.updateCartTotal();
     return removedItem;
   }

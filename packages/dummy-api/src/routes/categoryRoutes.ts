@@ -34,6 +34,10 @@ export function categoryRoutes(dataService: DataService): Router {
   router.get('/:id', (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+
+      if (!id || id.trim().length === 0) {
+        throw new ApiError(400, 'Category ID is required');
+      }
       const category = dataService.getCategoryById(id);
 
       if (!category) {
