@@ -1,5 +1,11 @@
 // packages/main-backend/src/services/DockerService.ts
 
+/**
+ * This module provides functionality for managing Docker containers that host API instances.
+ * It includes the `DockerService` class, which encapsulates operations such as creating,
+ * starting, stopping, and monitoring containers. Additionally, it exports a singleton
+ * instance of the service (`dockerService`) for use throughout the application.
+ */
 import Docker from 'dockerode';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
