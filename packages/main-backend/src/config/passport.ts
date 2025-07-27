@@ -175,12 +175,19 @@ async function createNewUser(userData: CreateUserData): Promise<User> {
         (error as { meta?: { target?: string[] } }).meta?.target?.[0];
 
       if (conflictField === 'username') {
+        const MAX_USERNAME_ATTEMPTS = 20;
         let counter = 1;
         let modifiedUsername: string;
         let isUnique = false;
 
-        // Try incrementing counter until a unique username is found
+        // Try incrementing counter until a unique username is found, up to MAX_USERNAME_ATTEMPTS
         do {
+          if (counter > MAX_USERNAME_ATTEMPTS) {
+            logger.error(
+              `Exceeded maximum attempts (${MAX_USERNAME_ATTEMPTS}) for username conflict resolution.`
+            );
+            throw new Error('Unable to resolve username conflict after multiple attempts.');
+          }
           modifiedUsername = `${userData.username}_${counter}`;
           const existing = await prisma.user.findUnique({
             where: { username: modifiedUsername },
@@ -268,7 +275,7 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
     'GitHub OAuth credentials not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.'
   );
   // Throw error to allow application-level error handling
-  throw new Error('GitHub OAuth credentials not configured.');
+  throw new Error('GitHub OAuth credentials not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.');
 }
 
 /**
