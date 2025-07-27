@@ -3,7 +3,14 @@
 import { Router, Request, Response } from 'express';
 import passport from '../config/passport';
 import { asyncHandler, ApiError } from '../middleware/errorHandler';
-import { generateTokenPair, verifyRefreshToken, verifyAccessToken, REFRESH_TOKEN_EXPIRY_MS } from '../utils/jwt';
+import {
+  generateTokenPair,
+  verifyRefreshToken,
+  verifyAccessToken,
+  REFRESH_TOKEN_EXPIRY_MS,
+  validateAccessTokenStatus,
+  validateRefreshTokenStatus,
+} from '../utils/jwt';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
 
@@ -15,8 +22,6 @@ interface AuthenticatedUser {
 }
 
 const router = Router();
-
-// Use shared expiry constant from JWT utilities
 
 /**
  * GET /api/auth/github - Initiate GitHub OAuth
@@ -59,6 +64,74 @@ router.get(
     const redirectUrl = `${frontendUrl}/auth/callback?token=${tokens.accessToken}&refresh=${tokens.refreshToken}`;
 
     res.redirect(redirectUrl);
+  })
+);
+
+/**
+ * GET /api/auth/token/status - Check token status and expiry
+ */
+router.get(
+  '/token/status',
+  asyncHandler(async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new ApiError('Authorization token required', 401);
+    }
+
+    const token = authHeader.substring(7);
+    const tokenStatus = validateAccessTokenStatus(token);
+
+    // Don't include sensitive payload data in response
+    const { payload, ...safeStatus } = tokenStatus;
+
+    res.json({
+      success: true,
+      data: {
+        ...safeStatus,
+        tokenType: 'access',
+        checkedAt: new Date().toISOString(),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  })
+);
+
+/**
+ * POST /api/auth/token/validate - Validate and get token information
+ */
+router.post(
+  '/token/validate',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { token, tokenType = 'access' } = req.body;
+
+    if (!token) {
+      throw new ApiError('Token required', 400);
+    }
+
+    const tokenStatus =
+      tokenType === 'refresh'
+        ? validateRefreshTokenStatus(token)
+        : validateAccessTokenStatus(token);
+
+    // Include user ID if token is valid
+    const responseData: any = {
+      ...tokenStatus,
+      tokenType,
+      checkedAt: new Date().toISOString(),
+    };
+
+    // Remove sensitive payload but include user ID if valid
+    if (tokenStatus.payload) {
+      responseData.userId = tokenStatus.payload.userId;
+      delete responseData.payload;
+    }
+
+    res.json({
+      success: true,
+      data: responseData,
+      timestamp: new Date().toISOString(),
+    });
   })
 );
 

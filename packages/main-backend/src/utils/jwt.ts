@@ -53,7 +53,6 @@ const REFRESH_TOKEN_EXPIRY = '7d'; // 7 days
 export const ACCESS_TOKEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 export const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-
 /**
  * Generate access token
  */
@@ -146,6 +145,18 @@ export function extractTokenFromHeader(authHeader: string): string {
 }
 
 /**
+ * Token validation result interface
+ */
+export interface TokenValidationResult {
+  isValid: boolean;
+  isExpired: boolean;
+  expiresAt?: Date;
+  timeUntilExpiry?: number; // seconds
+  payload?: JwtPayload;
+  error?: string;
+}
+
+/**
  * Check if token is expired (without verifying signature)
  */
 export function isTokenExpired(token: string): boolean {
@@ -160,4 +171,91 @@ export function isTokenExpired(token: string): boolean {
   } catch (error) {
     return true;
   }
+}
+
+/**
+ * Comprehensive token validation with detailed status information
+ */
+export function validateTokenStatus(token: string, secret: string): TokenValidationResult {
+  try {
+    // First decode without verification to check basic structure
+    const decodedUnsafe = jwt.decode(token) as JwtPayload;
+    if (!decodedUnsafe) {
+      return {
+        isValid: false,
+        isExpired: false,
+        error: 'Invalid token format',
+      };
+    }
+
+    // Check expiry before verification for efficiency
+    const currentTime = Math.floor(Date.now() / 1000);
+    const isExpired = decodedUnsafe.exp ? decodedUnsafe.exp < currentTime : true;
+
+    if (isExpired) {
+      const result: TokenValidationResult = {
+        isValid: false,
+        isExpired: true,
+        error: 'Token has expired',
+      };
+
+      if (decodedUnsafe.exp) {
+        result.expiresAt = new Date(decodedUnsafe.exp * 1000);
+      }
+
+      return result;
+    }
+
+    // Now verify with signature
+    const verified = jwt.verify(token, secret, {
+      issuer: 'trainings-api-hub',
+      audience: 'trainings-api-hub-users',
+    }) as JwtPayload;
+
+    const timeUntilExpiry = verified.exp ? verified.exp - currentTime : 0;
+
+    const result: TokenValidationResult = {
+      isValid: true,
+      isExpired: false,
+      timeUntilExpiry,
+      payload: verified,
+    };
+
+    if (verified.exp) {
+      result.expiresAt = new Date(verified.exp * 1000);
+    }
+
+    return result;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // Determine if it's an expiry issue
+    if (errorMessage.includes('jwt expired')) {
+      return {
+        isValid: false,
+        isExpired: true,
+        error: 'Token has expired',
+      };
+    }
+
+    return {
+      isValid: false,
+      isExpired: false,
+      error: errorMessage,
+    };
+  }
+}
+
+/**
+ * Validate access token with detailed status
+ */
+export function validateAccessTokenStatus(token: string): TokenValidationResult {
+  return validateTokenStatus(token, JWT_SECRET);
+}
+
+/**
+ * Validate refresh token with detailed status
+ */
+export function validateRefreshTokenStatus(token: string): TokenValidationResult {
+  return validateTokenStatus(token, JWT_REFRESH_SECRET);
 }

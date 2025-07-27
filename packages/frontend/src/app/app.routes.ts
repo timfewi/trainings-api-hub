@@ -5,30 +5,39 @@ import { LoginComponent } from './components/login/login.component';
 import { AuthCallbackComponent } from './components/auth-callback/auth-callback.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { AuthService } from './services/auth.service';
+import { map } from 'rxjs';
 
-// Simple auth guard function
+// Auth guard that waits for initialization to complete
 const authGuard = () => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  if (authService.isAuthenticated()) {
-    return true;
-  } else {
-    router.navigate(['/login']);
-    return false;
-  }
+  return authService.waitForInitialization().pipe(
+    map((isAuthenticated: boolean) => {
+      if (isAuthenticated) {
+        return true;
+      } else {
+        router.navigate(['/login']);
+        return false;
+      }
+    }),
+  );
 };
 
-// Simple redirect guard for login when already authenticated
+// Guard for login page when already authenticated
 const loginGuard = () => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  if (authService.isAuthenticated()) {
-    router.navigate(['/dashboard']);
-    return false;
-  }
-  return true;
+  return authService.waitForInitialization().pipe(
+    map((isAuthenticated: boolean) => {
+      if (isAuthenticated) {
+        router.navigate(['/dashboard']);
+        return false;
+      }
+      return true;
+    }),
+  );
 };
 
 export const routes: Routes = [

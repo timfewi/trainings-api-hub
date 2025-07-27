@@ -2,7 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ApiError } from './errorHandler';
-import { verifyAccessToken, extractTokenFromHeader } from '../utils/jwt';
+import { verifyAccessToken, extractTokenFromHeader, validateAccessTokenStatus } from '../utils/jwt';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
 import { User } from '@trainings-api-hub/shared';
@@ -31,7 +31,18 @@ export const authenticateToken = async (
 
     // Extract and verify the JWT token
     const token = extractTokenFromHeader(authHeader);
-    const payload = verifyAccessToken(token);
+
+    // Get detailed token status for better error messages
+    const tokenStatus = validateAccessTokenStatus(token);
+
+    if (!tokenStatus.isValid) {
+      if (tokenStatus.isExpired) {
+        throw new ApiError('Token has expired', 401);
+      }
+      throw new ApiError(tokenStatus.error || 'Invalid token', 401);
+    }
+
+    const payload = tokenStatus.payload!;
 
     // Get user from database
     const user = await prisma.user.findUnique({
@@ -55,6 +66,17 @@ export const authenticateToken = async (
       ...(user.avatarUrl && { avatarUrl: user.avatarUrl }),
       ...(user.githubUrl && { githubUrl: user.githubUrl }),
     };
+
+    // Add token expiry warning headers for frontend
+    if (tokenStatus.timeUntilExpiry && tokenStatus.timeUntilExpiry < 300) {
+      // 5 minutes
+      res.setHeader('X-Token-Expiry-Warning', 'true');
+      res.setHeader('X-Token-Expires-In', tokenStatus.timeUntilExpiry.toString());
+
+      if (tokenStatus.expiresAt) {
+        res.setHeader('X-Token-Expires-At', tokenStatus.expiresAt.toISOString());
+      }
+    }
 
     next();
   } catch (error) {
@@ -108,7 +130,7 @@ export const optionalAuth = async (
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const authReq = req as AuthenticatedRequest;
-    
+
     if (!authReq.user) {
       return next(new ApiError('Authentication required', 401));
     }

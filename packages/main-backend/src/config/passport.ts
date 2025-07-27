@@ -63,16 +63,16 @@ function convertToUser(prismaUser: PrismaUser): User {
     createdAt: prismaUser.createdAt,
     updatedAt: prismaUser.updatedAt,
   };
-  
+
   // Handle optional fields with proper type conversion
   if (prismaUser.avatarUrl) {
     user.avatarUrl = prismaUser.avatarUrl;
   }
-  
+
   if (prismaUser.githubUrl) {
     user.githubUrl = prismaUser.githubUrl;
   }
-  
+
   return user;
 }
 
@@ -163,10 +163,16 @@ async function createNewUser(userData: CreateUserData): Promise<User> {
     });
 
     return convertToUser(newUser);
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle unique constraint violations
-    if (error.code === 'P2002') {
-      const conflictField = error.meta?.target?.[0];
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    ) {
+      const conflictField =
+        (error as { meta?: { target?: string[] } }).meta?.target?.[0];
 
       if (conflictField === 'username') {
         const modifiedUsername = `${userData.username}_${randomUUID().slice(0, 8)}`;
