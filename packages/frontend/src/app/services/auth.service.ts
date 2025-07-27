@@ -392,17 +392,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Checks if a JWT token is expired.
-   *
-   * Note: Token expiry should be validated by the backend for security.
-   * This method is deprecated and no longer used.
-   * Always verify token validity with an API call.
-   */
-  // private isTokenExpired(token: string): boolean {
-  //   // Deprecated: Do not use client-side expiry check.
-  //   return false;
-  // }
 
   /**
    * Set token data (for refresh)

@@ -26,7 +26,6 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
     if (authService.isInitializing()) {
       return next(req);
     }
-    
     return next(req).pipe(
       tap((event) => {
         if (event instanceof HttpResponse) {
