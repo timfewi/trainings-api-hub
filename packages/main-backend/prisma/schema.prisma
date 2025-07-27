@@ -10,14 +10,17 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  firstName String
-  lastName  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  email      String   @unique
+  username   String   @unique
+  firstName  String
+  lastName   String
+  // GitHub OAuth fields
+  githubId   String   @unique
+  avatarUrl  String?
+  githubUrl  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relationships
   instances ApiInstance[]

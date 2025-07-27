@@ -2,113 +2,100 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ApiError } from './errorHandler';
+import { verifyAccessToken, extractTokenFromHeader, validateAccessTokenStatus } from '../utils/jwt';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
+import { User } from '@trainings-api-hub/shared';
 
 /**
  * Extended Request interface to include user information
  */
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    username: string;
-    firstName: string;
-    lastName: string;
-  };
+  user?: User;
 }
 
 /**
- * Authentication middleware - placeholder implementation
- * TODO: Replace with proper JWT authentication in Issue #3
+ * Authentication middleware using JWT tokens
  */
 export const authenticateToken = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // For now, we'll create a mock user for testing purposes
-    // This allows us to test the Docker service without implementing full auth
-
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      // For development/testing, create a mock user
-      if (process.env.NODE_ENV === 'development') {
-        logger.warn('No authorization header provided - using mock user for development');
-
-        // Ensure the mock user exists in the database
-        const mockUser = await prisma.user.upsert({
-          where: { id: 'test-user-123' },
-          update: {},
-          create: {
-            id: 'test-user-123',
-            email: 'test@example.com',
-            username: 'testuser',
-            password: 'mock-password', // Not used in development
-            firstName: 'Test',
-            lastName: 'User',
-          },
-        });
-
-        req.user = {
-          id: mockUser.id,
-          email: mockUser.email,
-          username: mockUser.username,
-          firstName: mockUser.firstName,
-          lastName: mockUser.lastName,
-        };
-        return next();
-      }
-
       throw new ApiError('Authorization header required', 401);
     }
 
-    // Basic token validation (placeholder)
-    const token = authHeader.split(' ')[1]; // Bearer <token>
+    // Extract and verify the JWT token
+    const token = extractTokenFromHeader(authHeader);
 
-    if (!token) {
-      throw new ApiError('Token not provided', 401);
+    // Get detailed token status for better error messages
+    const tokenStatus = validateAccessTokenStatus(token);
+
+    if (!tokenStatus.isValid) {
+      if (tokenStatus.isExpired) {
+        throw new ApiError('Token has expired', 401);
+      }
+      throw new ApiError(tokenStatus.error || 'Invalid token', 401);
     }
 
-    // TODO: Implement proper JWT verification
-    // For now, accept any token and create a mock user
-    if (process.env.NODE_ENV === 'development') {
-      logger.info(`Authentication token received: ${token.substring(0, 10)}...`);
+    const payload = tokenStatus.payload!;
 
-      // Ensure the authenticated mock user exists in the database
-      const mockUser = await prisma.user.upsert({
-        where: { id: 'authenticated-user-456' },
-        update: {},
-        create: {
-          id: 'authenticated-user-456',
-          email: 'user@example.com',
-          username: 'authenticateduser',
-          password: 'mock-password', // Not used in development
-          firstName: 'Authenticated',
-          lastName: 'User',
-        },
-      });
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+    });
 
-      req.user = {
-        id: mockUser.id,
-        email: mockUser.email,
-        username: mockUser.username,
-        firstName: mockUser.firstName,
-        lastName: mockUser.lastName,
-      };
-      return next();
+    if (!user) {
+      throw new ApiError('User not found', 401);
     }
 
-    // In production, this should validate the JWT
-    throw new ApiError('Invalid token', 401);
+    // Attach user info to request (use type assertion to add user property)
+    (req as AuthenticatedRequest).user = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      githubId: user.githubId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      ...(user.avatarUrl && { avatarUrl: user.avatarUrl }),
+      ...(user.githubUrl && { githubUrl: user.githubUrl }),
+    };
+
+    // Add token expiry warning headers for frontend
+    if (tokenStatus.timeUntilExpiry && tokenStatus.timeUntilExpiry < 300) {
+      // 5 minutes
+      res.setHeader('X-Token-Expiry-Warning', 'true');
+      res.setHeader('X-Token-Expires-In', tokenStatus.timeUntilExpiry.toString());
+
+      if (tokenStatus.expiresAt) {
+        res.setHeader('X-Token-Expires-At', tokenStatus.expiresAt.toISOString());
+      }
+    }
+
+    next();
   } catch (error) {
     if (error instanceof ApiError) {
       return next(error);
     }
 
     logger.error('Authentication error:', error);
+
+    // Handle JWT specific errors
+    if (error instanceof Error) {
+      if (error.message.includes('jwt expired')) {
+        return next(new ApiError('Token expired', 401));
+      }
+      if (error.message.includes('invalid token') || error.message.includes('jwt malformed')) {
+        return next(new ApiError('Invalid token', 401));
+      }
+    }
+
     return next(new ApiError('Authentication failed', 401));
   }
 };
@@ -117,7 +104,7 @@ export const authenticateToken = async (
  * Optional authentication middleware - allows both authenticated and unauthenticated requests
  */
 export const optionalAuth = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -141,8 +128,10 @@ export const optionalAuth = async (
  * Role-based authorization middleware (placeholder for future use)
  */
 export const requireRole = (roles: string[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const authReq = req as AuthenticatedRequest;
+
+    if (!authReq.user) {
       return next(new ApiError('Authentication required', 401));
     }
 
