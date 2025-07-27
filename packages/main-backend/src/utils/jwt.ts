@@ -95,7 +95,7 @@ export function generateTokenPair(payload: Omit<JwtPayload, 'iat' | 'exp'>): Tok
   return {
     accessToken,
     refreshToken,
-    expiresIn: 15 * 60, // 15 minutes in seconds
+    expiresIn: Math.floor(ACCESS_TOKEN_EXPIRY_MS / 1000), // 15 minutes in seconds
   };
 }
 
