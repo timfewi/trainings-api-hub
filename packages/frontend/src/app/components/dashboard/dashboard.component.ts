@@ -375,9 +375,9 @@ export class DashboardComponent implements OnInit {
     this.authService.logout();
   }
 
-  getUserAvatar(user: any): string {
+  getUserAvatar(user: User): string {
     return (
-      (user as User).avatarUrl ||
+      user.avatarUrl ||
       `https://github.com/identicons/${user.username}.png`
     );
   }

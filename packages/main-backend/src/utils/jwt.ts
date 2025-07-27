@@ -28,7 +28,14 @@ export interface TokenPair {
  */
 const isProduction = process.env.NODE_ENV === 'production';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-development';
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'production'
+    ? (() => {
+        throw new Error('JWT_SECRET must be set in production environment');
+      })()
+    : 'your-secret-key-change-in-development');
+
 const JWT_REFRESH_SECRET =
   process.env.JWT_REFRESH_SECRET ||
   (process.env.NODE_ENV === 'production'
@@ -40,9 +47,12 @@ const JWT_REFRESH_SECRET =
 const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
 const REFRESH_TOKEN_EXPIRY = '7d'; // 7 days
 
-if (isProduction && !process.env.JWT_REFRESH_SECRET) {
-  throw new Error('JWT_REFRESH_SECRET environment variable must be set in production');
-}
+/**
+ * Token expiry times in milliseconds
+ */
+export const ACCESS_TOKEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
+export const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+
 
 /**
  * Generate access token

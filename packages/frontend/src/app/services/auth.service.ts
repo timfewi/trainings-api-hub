@@ -166,7 +166,14 @@ export class AuthService {
         this._authToken.set(token);
         this._currentUser.set(user);
 
-        // Verify token is still valid
+        // Check token expiry before making API call
+        const tokenExpired = this.isTokenExpired(token);
+        if (!tokenExpired) {
+          // Token is valid, skip unnecessary API call
+          return;
+        }
+
+        // Token might be expired, verify with backend
         this.getUserProfile().subscribe({
           next: (response) => {
             if (response.success && response.data) {
@@ -186,6 +193,23 @@ export class AuthService {
         console.error('Failed to parse stored user data:', error);
         this.clearAuthData();
       }
+    }
+  }
+
+  /**
+   * Checks if a JWT token is expired
+   * @param token JWT token string
+   * @returns boolean
+   */
+  private isTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      // exp is in seconds
+      const expiry = payload.exp;
+      if (!expiry) return true;
+      return Math.floor(Date.now() / 1000) >= expiry;
+    } catch {
+      return true;
     }
   }
 

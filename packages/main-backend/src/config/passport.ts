@@ -50,19 +50,30 @@ interface UpdateUserData {
 /**
  * Convert Prisma User to shared User type
  */
-function convertToUser(prismaUser: any): User {
-  return {
+import type { User as PrismaUser } from '@prisma/client';
+
+function convertToUser(prismaUser: PrismaUser): User {
+  const user: User = {
     id: prismaUser.id,
     email: prismaUser.email,
     username: prismaUser.username,
     firstName: prismaUser.firstName,
     lastName: prismaUser.lastName,
     githubId: prismaUser.githubId,
-    avatarUrl: prismaUser.avatarUrl || undefined,
-    githubUrl: prismaUser.githubUrl || undefined,
     createdAt: prismaUser.createdAt,
     updatedAt: prismaUser.updatedAt,
   };
+  
+  // Handle optional fields with proper type conversion
+  if (prismaUser.avatarUrl) {
+    user.avatarUrl = prismaUser.avatarUrl;
+  }
+  
+  if (prismaUser.githubUrl) {
+    user.githubUrl = prismaUser.githubUrl;
+  }
+  
+  return user;
 }
 
 /**
@@ -234,6 +245,8 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
   logger.error(
     'GitHub OAuth credentials not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.'
   );
+  // Exit the process to prevent runtime failures
+  process.exit(1);
 }
 
 /**

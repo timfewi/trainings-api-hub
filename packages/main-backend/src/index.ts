@@ -92,8 +92,8 @@ async function startServer(): Promise<void> {
 
   // API routes
   app.use('/api/auth', authRoutes);
-  app.use('/api/instances', authenticateToken as express.RequestHandler, instanceRoutes);
-  app.use('/api/user', authenticateToken as express.RequestHandler, userRoutes);
+  app.use('/api/instances', authenticateToken, instanceRoutes);
+  app.use('/api/user', authenticateToken, userRoutes);
 
   // Error handling
   app.use(errorHandler);

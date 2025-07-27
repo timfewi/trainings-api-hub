@@ -3,11 +3,20 @@
 import { Router, Request, Response } from 'express';
 import passport from '../config/passport';
 import { asyncHandler, ApiError } from '../middleware/errorHandler';
-import { generateTokenPair, verifyRefreshToken, verifyAccessToken } from '../utils/jwt';
+import { generateTokenPair, verifyRefreshToken, verifyAccessToken, REFRESH_TOKEN_EXPIRY_MS } from '../utils/jwt';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
 
+interface AuthenticatedUser {
+  id: string;
+  email: string;
+  username: string;
+  [key: string]: unknown; // Extend as needed for additional properties
+}
+
 const router = Router();
+
+// Use shared expiry constant from JWT utilities
 
 /**
  * GET /api/auth/github - Initiate GitHub OAuth
@@ -21,7 +30,7 @@ router.get(
   '/github/callback',
   passport.authenticate('github', { failureRedirect: '/login?error=oauth_failed' }),
   asyncHandler(async (req: Request, res: Response) => {
-    const user = req.user as any;
+    const user = req.user as AuthenticatedUser;
 
     if (!user) {
       throw new ApiError('Authentication failed', 401);
@@ -41,7 +50,7 @@ router.get(
       data: {
         userId: user.id,
         refreshToken: tokens.refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS), // 7 days
       },
     });
 
@@ -137,7 +146,7 @@ router.post(
         where: { id: session.id },
         data: {
           refreshToken: newTokens.refreshToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS), // 7 days
         },
       });
 

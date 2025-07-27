@@ -5,27 +5,20 @@ import { ApiError } from './errorHandler';
 import { verifyAccessToken, extractTokenFromHeader } from '../utils/jwt';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
+import { User } from '@trainings-api-hub/shared';
 
 /**
  * Extended Request interface to include user information
  */
 export interface AuthenticatedRequest extends Request {
-  user?:
-    | {
-        id: string;
-        email: string;
-        username: string;
-        firstName: string;
-        lastName: string;
-      }
-    | undefined;
+  user?: User;
 }
 
 /**
  * Authentication middleware using JWT tokens
  */
 export const authenticateToken = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -49,13 +42,18 @@ export const authenticateToken = async (
       throw new ApiError('User not found', 401);
     }
 
-    // Attach user info to request
-    req.user = {
+    // Attach user info to request (use type assertion to add user property)
+    (req as AuthenticatedRequest).user = {
       id: user.id,
       email: user.email,
       username: user.username,
       firstName: user.firstName,
       lastName: user.lastName,
+      githubId: user.githubId,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      ...(user.avatarUrl && { avatarUrl: user.avatarUrl }),
+      ...(user.githubUrl && { githubUrl: user.githubUrl }),
     };
 
     next();
@@ -84,7 +82,7 @@ export const authenticateToken = async (
  * Optional authentication middleware - allows both authenticated and unauthenticated requests
  */
 export const optionalAuth = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -108,8 +106,10 @@ export const optionalAuth = async (
  * Role-based authorization middleware (placeholder for future use)
  */
 export const requireRole = (roles: string[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const authReq = req as AuthenticatedRequest;
+    
+    if (!authReq.user) {
       return next(new ApiError('Authentication required', 401));
     }
 
