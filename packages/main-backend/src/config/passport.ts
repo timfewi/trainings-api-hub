@@ -1,9 +1,226 @@
 // packages/main-backend/src/config/passport.ts
 
 import passport from 'passport';
-import { Strategy as GitHubStrategy } from 'passport-github2';
+import { Strategy as GitHubStrategy, Profile as GitHubProfile } from 'passport-github2';
+import { VerifyCallback } from 'passport-oauth2';
 import { prisma } from '../utils/database';
 import { logger } from '../utils/logger';
+import { User } from '@trainings-api-hub/shared';
+import { randomUUID } from 'crypto';
+
+/**
+ * GitHub profile data interface
+ */
+interface GitHubProfileData {
+  githubId: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl?: string | null | undefined;
+  githubUrl?: string | null | undefined;
+}
+
+/**
+ * User creation data interface (excluding auto-generated fields)
+ */
+interface CreateUserData {
+  githubId: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl?: string | null | undefined;
+  githubUrl?: string | null | undefined;
+}
+
+/**
+ * User update data interface
+ */
+interface UpdateUserData {
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl?: string | null | undefined;
+  githubUrl?: string | null | undefined;
+  updatedAt: Date;
+}
+
+/**
+ * Convert Prisma User to shared User type
+ */
+function convertToUser(prismaUser: any): User {
+  return {
+    id: prismaUser.id,
+    email: prismaUser.email,
+    username: prismaUser.username,
+    firstName: prismaUser.firstName,
+    lastName: prismaUser.lastName,
+    githubId: prismaUser.githubId,
+    avatarUrl: prismaUser.avatarUrl || undefined,
+    githubUrl: prismaUser.githubUrl || undefined,
+    createdAt: prismaUser.createdAt,
+    updatedAt: prismaUser.updatedAt,
+  };
+}
+
+/**
+ * Extract and validate user data from GitHub profile
+ */
+function extractGitHubProfileData(profile: GitHubProfile): GitHubProfileData {
+  const githubId = profile.id;
+  const username = profile.username || 'unknown';
+  const email = profile.emails?.[0]?.value || `${username}@github.local`;
+  const displayNameParts = profile.displayName?.split(' ') || [username];
+  const firstName = displayNameParts[0] || username;
+  const lastName = displayNameParts.slice(1).join(' ') || '';
+  const avatarUrl = profile.photos?.[0]?.value || null;
+  const githubUrl = profile.profileUrl || null;
+
+  return {
+    githubId,
+    username,
+    email,
+    firstName,
+    lastName,
+    avatarUrl,
+    githubUrl,
+  };
+}
+
+/**
+ * Find user by GitHub ID
+ */
+async function findUserByGitHubId(githubId: string): Promise<User | null> {
+  try {
+    const prismaUser = await prisma.user.findUnique({
+      where: { githubId },
+    });
+
+    return prismaUser ? convertToUser(prismaUser) : null;
+  } catch (error) {
+    logger.error('Error finding user by GitHub ID:', error);
+    throw new Error('Database query failed');
+  }
+}
+
+/**
+ * Update existing user with GitHub data
+ */
+async function updateExistingUser(userId: string, userData: UpdateUserData): Promise<User> {
+  try {
+    const updatePayload = {
+      email: userData.email,
+      username: userData.username,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      avatarUrl: userData.avatarUrl ?? null,
+      githubUrl: userData.githubUrl ?? null,
+      updatedAt: userData.updatedAt,
+    };
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updatePayload,
+    });
+
+    return convertToUser(updatedUser);
+  } catch (error) {
+    logger.error('Error updating user:', error);
+    throw new Error('Failed to update user');
+  }
+}
+
+/**
+ * Create new user with conflict resolution
+ */
+async function createNewUser(userData: CreateUserData): Promise<User> {
+  const createPayload = {
+    githubId: userData.githubId,
+    email: userData.email,
+    username: userData.username,
+    firstName: userData.firstName,
+    lastName: userData.lastName,
+    avatarUrl: userData.avatarUrl ?? null,
+    githubUrl: userData.githubUrl ?? null,
+  };
+
+  try {
+    const newUser = await prisma.user.create({
+      data: createPayload,
+    });
+
+    return convertToUser(newUser);
+  } catch (error: any) {
+    // Handle unique constraint violations
+    if (error.code === 'P2002') {
+      const conflictField = error.meta?.target?.[0];
+
+      if (conflictField === 'username') {
+        const modifiedUsername = `${userData.username}_${randomUUID().slice(0, 8)}`;
+        logger.info(`Username conflict resolved with: ${modifiedUsername}`);
+
+        const newUser = await prisma.user.create({
+          data: { ...createPayload, username: modifiedUsername },
+        });
+
+        return convertToUser(newUser);
+      }
+
+      if (conflictField === 'email') {
+        const modifiedEmail = `${userData.githubId}@github.trainings-api-hub.local`;
+        logger.info(`Email conflict resolved with: ${modifiedEmail}`);
+
+        const newUser = await prisma.user.create({
+          data: { ...createPayload, email: modifiedEmail },
+        });
+
+        return convertToUser(newUser);
+      }
+    }
+
+    logger.error('Error creating user:', error);
+    throw new Error('Failed to create user');
+  }
+}
+
+/**
+ * Handle GitHub OAuth user creation or update
+ */
+async function handleGitHubUser(profileData: GitHubProfileData): Promise<User> {
+  const existingUser = await findUserByGitHubId(profileData.githubId);
+
+  if (existingUser) {
+    logger.info(`Updating existing user: ${existingUser.id}`);
+
+    const updateData: UpdateUserData = {
+      email: profileData.email,
+      username: profileData.username,
+      firstName: profileData.firstName,
+      lastName: profileData.lastName,
+      avatarUrl: profileData.avatarUrl,
+      githubUrl: profileData.githubUrl,
+      updatedAt: new Date(),
+    };
+
+    return await updateExistingUser(existingUser.id, updateData);
+  } else {
+    logger.info(`Creating new user for GitHub ID: ${profileData.githubId}`);
+
+    const createData: CreateUserData = {
+      githubId: profileData.githubId,
+      email: profileData.email,
+      username: profileData.username,
+      firstName: profileData.firstName,
+      lastName: profileData.lastName,
+      avatarUrl: profileData.avatarUrl,
+      githubUrl: profileData.githubUrl,
+    };
+
+    return await createNewUser(createData);
+  }
+}
 
 /**
  * GitHub OAuth configuration
@@ -20,7 +237,7 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
 }
 
 /**
- * Configure GitHub OAuth strategy
+ * Configure GitHub OAuth strategy with type safety
  */
 passport.use(
   new GitHubStrategy(
@@ -30,125 +247,56 @@ passport.use(
       callbackURL: CALLBACK_URL,
       scope: ['user:email'], // Request access to user email
     },
-    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
+    async (
+      accessToken: string,
+      refreshToken: string,
+      profile: GitHubProfile,
+      done: VerifyCallback
+    ) => {
       try {
         logger.info(`GitHub OAuth callback for user: ${profile.username}`);
 
-        // Extract user information from GitHub profile
-        const githubId = profile.id;
-        const username = profile.username;
-        const email = profile.emails?.[0]?.value || `${username}@github.local`;
-        const firstName = profile.displayName?.split(' ')[0] || username;
-        const lastName = profile.displayName?.split(' ').slice(1).join(' ') || '';
-        const avatarUrl = profile.photos?.[0]?.value;
-        const githubUrl = profile.profileUrl;
+        // Extract and validate profile data
+        const profileData = extractGitHubProfileData(profile);
 
-        // Check if user already exists by githubId
-        // Using findFirst as a workaround for TypeScript issues
-        let user = await prisma.user.findFirst({
-          where: { githubId: githubId } as any,
-        });
+        // Handle user creation or update
+        const user = await handleGitHubUser(profileData);
 
-        if (user) {
-          // Update existing user with latest GitHub info
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              email,
-              username,
-              firstName,
-              lastName,
-              avatarUrl,
-              githubUrl,
-              updatedAt: new Date(),
-            } as any,
-          });
-          logger.info(`Updated existing user: ${user.id}`);
-        } else {
-          // Create new user
-          try {
-            user = await prisma.user.create({
-              data: {
-                githubId,
-                email,
-                username,
-                firstName,
-                lastName,
-                avatarUrl,
-                githubUrl,
-              } as any,
-            });
-            logger.info(`Created new user: ${user.id}`);
-          } catch (error: any) {
-            // Handle unique constraint violations (username or email already exists)
-            if (error.code === 'P2002') {
-              const field = error.meta?.target?.[0];
-              if (field === 'username') {
-                // Try with a modified username
-                const modifiedUsername = `${username}_${Math.random().toString(36).substring(7)}`;
-                user = await prisma.user.create({
-                  data: {
-                    githubId,
-                    email,
-                    username: modifiedUsername,
-                    firstName,
-                    lastName,
-                    avatarUrl,
-                    githubUrl,
-                  } as any,
-                });
-                logger.info(`Created new user with modified username: ${user.id}`);
-              } else if (field === 'email') {
-                // Use GitHub ID based email if email already exists
-                const modifiedEmail = `${githubId}@github.trainings-api-hub.local`;
-                user = await prisma.user.create({
-                  data: {
-                    githubId,
-                    email: modifiedEmail,
-                    username,
-                    firstName,
-                    lastName,
-                    avatarUrl,
-                    githubUrl,
-                  } as any,
-                });
-                logger.info(`Created new user with modified email: ${user.id}`);
-              } else {
-                throw error;
-              }
-            } else {
-              throw error;
-            }
-          }
-        }
-
+        logger.info(`OAuth successful for user ID: ${user.id}`);
         return done(null, user);
       } catch (error) {
         logger.error('GitHub OAuth strategy error:', error);
-        return done(error, null);
+        return done(error, false);
       }
     }
   )
 );
 
 /**
- * Serialize user for session
+ * Serialize user for session storage
  */
-passport.serializeUser((user: any, done) => {
-  done(null, user.id);
+passport.serializeUser((user: Express.User, done) => {
+  const typedUser = user as User;
+  done(null, typedUser.id);
 });
 
 /**
- * Deserialize user from session
+ * Deserialize user from session storage
  */
 passport.deserializeUser(async (id: string, done) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
     });
-    done(null, user);
+
+    if (user) {
+      done(null, convertToUser(user));
+    } else {
+      done(new Error('User not found'), false);
+    }
   } catch (error) {
-    done(error, null);
+    logger.error('Error deserializing user:', error);
+    done(error, false);
   }
 });
 
