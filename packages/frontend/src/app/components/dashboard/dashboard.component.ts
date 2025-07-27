@@ -22,10 +22,7 @@ import { User } from '@trainings-api-hub/shared';
             @if (authService.currentUser(); as user) {
               <div class="user-profile">
                 <img
-                  [src]="
-                    user.avatarUrl ||
-                    'https://github.com/identicons/' + user.username + '.png'
-                  "
+                  [src]="getUserAvatar(user)"
                   [alt]="user.username + ' avatar'"
                   class="avatar"
                 />
@@ -376,6 +373,13 @@ export class DashboardComponent implements OnInit {
 
   logout(): void {
     this.authService.logout();
+  }
+
+  getUserAvatar(user: any): string {
+    return (
+      (user as User).avatarUrl ||
+      `https://github.com/identicons/${user.username}.png`
+    );
   }
 
   formatDate(dateString: string): string {
