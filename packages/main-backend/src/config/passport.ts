@@ -51,6 +51,7 @@ interface UpdateUserData {
  * Convert Prisma User to shared User type
  */
 import type { User as PrismaUser } from '@prisma/client';
+import { map } from 'rxjs';
 
 function convertToUser(prismaUser: PrismaUser): User {
   const user: User = {
@@ -171,33 +172,31 @@ async function createNewUser(userData: CreateUserData): Promise<User> {
       'code' in error &&
       (error as { code?: string }).code === 'P2002'
     ) {
-      const conflictField =
-        (error as { meta?: { target?: string[] } }).meta?.target?.[0];
+      const conflictField = (error as { meta?: { target?: string[] } }).meta?.target?.[0];
 
       if (conflictField === 'username') {
-        const MAX_USERNAME_ATTEMPTS = 20;
-        let counter = 1;
-        let modifiedUsername: string;
-        let isUnique = false;
+        const existingUsernames = await prisma.user.findMany({
+          where: {
+            username: {
+              startsWith: `${userData.username}_`,
+            },
+          },
+          select: {
+            username: true,
+          },
+        });
 
-        // Try incrementing counter until a unique username is found, up to MAX_USERNAME_ATTEMPTS
-        do {
-          if (counter > MAX_USERNAME_ATTEMPTS) {
-            logger.error(
-              `Exceeded maximum attempts (${MAX_USERNAME_ATTEMPTS}) for username conflict resolution.`
-            );
-            throw new Error('Unable to resolve username conflict after multiple attempts.');
-          }
-          modifiedUsername = `${userData.username}_${counter}`;
-          const existing = await prisma.user.findUnique({
-            where: { username: modifiedUsername },
-          });
-          if (!existing) {
-            isUnique = true;
-          } else {
-            counter++;
-          }
-        } while (!isUnique);
+        // Extract numeric counters from usernames
+        const counters = existingUsernames
+          .map(user => {
+            const match = user.username.match(/_(\d+)$/);
+            return match && match[1] ? parseInt(match[1], 10) : 0;
+          })
+          .filter(counter => !isNaN(counter));
+
+        // Determine the next available counter
+        const maxCounter = counters.length > 0 ? Math.max(...counters) : 0;
+        const modifiedUsername = `${userData.username}_${maxCounter + 1}`;
 
         logger.info(`Username conflict resolved with: ${modifiedUsername}`);
 
@@ -275,7 +274,9 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
     'GitHub OAuth credentials not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.'
   );
   // Throw error to allow application-level error handling
-  throw new Error('GitHub OAuth credentials not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.');
+  throw new Error(
+    'GitHub OAuth credentials not configured. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.'
+  );
 }
 
 /**
