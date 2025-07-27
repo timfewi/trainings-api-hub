@@ -1,11 +1,12 @@
 ---
-applyTo: "**"
+applyTo: '**'
 ---
 
 Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.
 
 ## Coding Guidelines
 
+- Always keep in mind that this repository is public and open-source.
 - Always add the relative file path as a comment in the first line of every file (e.g., `// src/components/MyComponent.ts`)
 - Use TypeScript strict mode and enable all recommended linting rules
 - Follow consistent naming conventions: camelCase for variables/functions, PascalCase for classes/components

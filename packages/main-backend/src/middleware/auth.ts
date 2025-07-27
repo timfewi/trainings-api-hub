@@ -2,6 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ApiError } from './errorHandler';
+import { verifyAccessToken, extractTokenFromHeader } from '../utils/jwt';
 import { logger } from '../utils/logger';
 import { prisma } from '../utils/database';
 
@@ -9,18 +10,19 @@ import { prisma } from '../utils/database';
  * Extended Request interface to include user information
  */
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    username: string;
-    firstName: string;
-    lastName: string;
-  };
+  user?:
+    | {
+        id: string;
+        email: string;
+        username: string;
+        firstName: string;
+        lastName: string;
+      }
+    | undefined;
 }
 
 /**
- * Authentication middleware - placeholder implementation
- * TODO: Replace with proper JWT authentication in Issue #3
+ * Authentication middleware using JWT tokens
  */
 export const authenticateToken = async (
   req: AuthenticatedRequest,
@@ -28,87 +30,52 @@ export const authenticateToken = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // For now, we'll create a mock user for testing purposes
-    // This allows us to test the Docker service without implementing full auth
-
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      // For development/testing, create a mock user
-      if (process.env.NODE_ENV === 'development') {
-        logger.warn('No authorization header provided - using mock user for development');
-
-        // Ensure the mock user exists in the database
-        const mockUser = await prisma.user.upsert({
-          where: { id: 'test-user-123' },
-          update: {},
-          create: {
-            id: 'test-user-123',
-            email: 'test@example.com',
-            username: 'testuser',
-            password: 'mock-password', // Not used in development
-            firstName: 'Test',
-            lastName: 'User',
-          },
-        });
-
-        req.user = {
-          id: mockUser.id,
-          email: mockUser.email,
-          username: mockUser.username,
-          firstName: mockUser.firstName,
-          lastName: mockUser.lastName,
-        };
-        return next();
-      }
-
       throw new ApiError('Authorization header required', 401);
     }
 
-    // Basic token validation (placeholder)
-    const token = authHeader.split(' ')[1]; // Bearer <token>
+    // Extract and verify the JWT token
+    const token = extractTokenFromHeader(authHeader);
+    const payload = verifyAccessToken(token);
 
-    if (!token) {
-      throw new ApiError('Token not provided', 401);
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+    });
+
+    if (!user) {
+      throw new ApiError('User not found', 401);
     }
 
-    // TODO: Implement proper JWT verification
-    // For now, accept any token and create a mock user
-    if (process.env.NODE_ENV === 'development') {
-      logger.info(`Authentication token received: ${token.substring(0, 10)}...`);
+    // Attach user info to request
+    req.user = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    };
 
-      // Ensure the authenticated mock user exists in the database
-      const mockUser = await prisma.user.upsert({
-        where: { id: 'authenticated-user-456' },
-        update: {},
-        create: {
-          id: 'authenticated-user-456',
-          email: 'user@example.com',
-          username: 'authenticateduser',
-          password: 'mock-password', // Not used in development
-          firstName: 'Authenticated',
-          lastName: 'User',
-        },
-      });
-
-      req.user = {
-        id: mockUser.id,
-        email: mockUser.email,
-        username: mockUser.username,
-        firstName: mockUser.firstName,
-        lastName: mockUser.lastName,
-      };
-      return next();
-    }
-
-    // In production, this should validate the JWT
-    throw new ApiError('Invalid token', 401);
+    next();
   } catch (error) {
     if (error instanceof ApiError) {
       return next(error);
     }
 
     logger.error('Authentication error:', error);
+
+    // Handle JWT specific errors
+    if (error instanceof Error) {
+      if (error.message.includes('jwt expired')) {
+        return next(new ApiError('Token expired', 401));
+      }
+      if (error.message.includes('invalid token') || error.message.includes('jwt malformed')) {
+        return next(new ApiError('Invalid token', 401));
+      }
+    }
+
     return next(new ApiError('Authentication failed', 401));
   }
 };

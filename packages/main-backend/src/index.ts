@@ -5,7 +5,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import session from 'express-session';
 import dotenv from 'dotenv';
+import passport from './config/passport';
 import { authRoutes } from './routes/authRoutes';
 import { instanceRoutes } from './routes/instanceRoutes';
 import { userRoutes } from './routes/userRoutes';
@@ -54,6 +56,23 @@ async function startServer(): Promise<void> {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  // Session middleware for passport
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || 'your-session-secret-change-in-production',
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      },
+    })
+  );
+
+  // Passport middleware
+  app.use(passport.initialize());
+  app.use(passport.session());
+
   // Health check endpoint
   app.get('/health', (req, res) => {
     res.json({
@@ -69,8 +88,8 @@ async function startServer(): Promise<void> {
 
   // API routes
   app.use('/api/auth', authRoutes);
-  app.use('/api/instances', authenticateToken, instanceRoutes);
-  app.use('/api/user', authenticateToken, userRoutes);
+  app.use('/api/instances', authenticateToken as express.RequestHandler, instanceRoutes);
+  app.use('/api/user', authenticateToken as express.RequestHandler, userRoutes);
 
   // Error handling
   app.use(errorHandler);
@@ -96,6 +115,7 @@ async function startServer(): Promise<void> {
   app.listen(PORT, () => {
     logger.info(`🚀 Main backend server running on port ${PORT}`);
     logger.info(`📖 Health check: http://localhost:${PORT}/health`);
+    logger.info(`🔐 GitHub OAuth: http://localhost:${PORT}/api/auth/github`);
   });
 
   // Graceful shutdown

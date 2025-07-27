@@ -30,6 +30,7 @@ The API Sandbox is a comprehensive training platform that provides students with
 - npm 9+
 - Docker and Docker Compose
 - PostgreSQL (or use Docker)
+- GitHub account (for OAuth authentication)
 
 ### Installation
 
@@ -51,6 +52,8 @@ cp packages/main-backend/.env.example packages/main-backend/.env
 
 # Edit the .env file with your configuration
 ```
+
+**📚 For GitHub OAuth setup, see the detailed guide:** [GitHub Authentication Setup](.github/GITHUB_AUTH_SETUP.md)
 
 4. Start the development environment:
 ```bash
@@ -199,7 +202,10 @@ Each API instance provides these endpoints:
 - `GET /orders/:id` - Get order by ID
 - `GET /users/:id` - Get user by ID
 
+
 ## Deployment
+
+## Authentication GitHub OAuth
 
 ### Production Build
 

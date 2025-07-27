@@ -3,26 +3,12 @@
 import { Injectable, signal, inject, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import {
-  Observable,
-  BehaviorSubject,
-  catchError,
-  map,
-  tap,
-  throwError,
-} from 'rxjs';
-import { toSignal } from '@angular/core/rxjs-interop';
-import {
-  User,
-  UserLoginRequest,
-  UserRegistrationRequest,
-  AuthToken,
-  ApiResponse,
-} from '@trainings-api-hub/shared';
+import { Observable, catchError, tap, throwError } from 'rxjs';
+import { User, ApiResponse } from '@trainings-api-hub/shared';
 import { environment } from '../../environments/environment';
 
 /**
- * Authentication service for managing user login, registration, and session
+ * Authentication service for GitHub OAuth
  */
 @Injectable({
   providedIn: 'root',
@@ -47,54 +33,54 @@ export class AuthService {
   }
 
   /**
-   * Register a new user
+   * Initiate GitHub OAuth login
    */
-  register(
-    userData: UserRegistrationRequest,
-  ): Observable<ApiResponse<{ user: User; token: AuthToken }>> {
-    this._isLoading.set(true);
-
-    return this.http
-      .post<
-        ApiResponse<{ user: User; token: AuthToken }>
-      >(`${environment.apiUrl}/auth/register`, userData)
-      .pipe(
-        tap((response) => {
-          if (response.success && response.data) {
-            this.setAuthData(response.data.user, response.data.token);
-          }
-        }),
-        catchError((error) => {
-          console.error('Registration failed:', error);
-          return throwError(() => error);
-        }),
-        tap(() => this._isLoading.set(false)),
-      );
+  loginWithGitHub(): void {
+    window.location.href = `${environment.apiUrl}/auth/github`;
   }
 
   /**
-   * Login user with email and password
+   * Handle OAuth callback from GitHub
    */
-  login(
-    credentials: UserLoginRequest,
-  ): Observable<ApiResponse<{ user: User; token: AuthToken }>> {
+  handleOAuthCallback(token: string, refreshToken: string): void {
     this._isLoading.set(true);
 
+    // Store tokens
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('refreshToken', refreshToken);
+    this._authToken.set(token);
+
+    // Get user profile
+    this.getUserProfile().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this._currentUser.set(response.data);
+          // Store user data in localStorage for persistence
+          localStorage.setItem('currentUser', JSON.stringify(response.data));
+          this.router.navigate(['/dashboard']);
+        }
+      },
+      error: (error) => {
+        console.error('Failed to get user profile:', error);
+        this.clearAuthData();
+      },
+      complete: () => {
+        this._isLoading.set(false);
+      },
+    });
+  }
+
+  /**
+   * Get current user profile
+   */
+  getUserProfile(): Observable<ApiResponse<User>> {
     return this.http
-      .post<
-        ApiResponse<{ user: User; token: AuthToken }>
-      >(`${environment.apiUrl}/auth/login`, credentials)
+      .get<ApiResponse<User>>(`${environment.apiUrl}/auth/me`)
       .pipe(
-        tap((response) => {
-          if (response.success && response.data) {
-            this.setAuthData(response.data.user, response.data.token);
-          }
-        }),
         catchError((error) => {
-          console.error('Login failed:', error);
+          console.error('Failed to fetch user profile:', error);
           return throwError(() => error);
         }),
-        tap(() => this._isLoading.set(false)),
       );
   }
 
@@ -104,11 +90,11 @@ export class AuthService {
   logout(): void {
     this._isLoading.set(true);
 
-    // Call logout endpoint if token exists
-    const token = this._authToken();
-    if (token) {
+    // Call logout endpoint if refresh token exists
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
       this.http
-        .post(`${environment.apiUrl}/auth/logout`, {})
+        .post(`${environment.apiUrl}/auth/logout`, { refreshToken })
         .pipe(
           catchError((error) => {
             console.warn('Logout endpoint failed:', error);
@@ -126,7 +112,13 @@ export class AuthService {
   /**
    * Refresh authentication token
    */
-  refreshToken(): Observable<ApiResponse<AuthToken>> {
+  refreshToken(): Observable<
+    ApiResponse<{
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }>
+  > {
     const refreshToken = localStorage.getItem('refreshToken');
     if (!refreshToken) {
       return throwError(() => new Error('No refresh token available'));
@@ -134,7 +126,11 @@ export class AuthService {
 
     return this.http
       .post<
-        ApiResponse<AuthToken>
+        ApiResponse<{
+          accessToken: string;
+          refreshToken: string;
+          expiresIn: number;
+        }>
       >(`${environment.apiUrl}/auth/refresh`, { refreshToken })
       .pipe(
         tap((response) => {
@@ -169,6 +165,23 @@ export class AuthService {
         const user: User = JSON.parse(userStr);
         this._authToken.set(token);
         this._currentUser.set(user);
+
+        // Verify token is still valid
+        this.getUserProfile().subscribe({
+          next: (response) => {
+            if (response.success && response.data) {
+              this._currentUser.set(response.data);
+              localStorage.setItem(
+                'currentUser',
+                JSON.stringify(response.data),
+              );
+            }
+          },
+          error: (error) => {
+            console.warn('Stored token is invalid, clearing auth data:', error);
+            this.clearAuthData();
+          },
+        });
       } catch (error) {
         console.error('Failed to parse stored user data:', error);
         this.clearAuthData();
@@ -177,27 +190,16 @@ export class AuthService {
   }
 
   /**
-   * Set authentication data in memory and localStorage
+   * Set token data (for refresh)
    */
-  private setAuthData(user: User, token: AuthToken): void {
-    this._currentUser.set(user);
-    this._authToken.set(token.accessToken);
-
-    localStorage.setItem('authToken', token.accessToken);
-    localStorage.setItem('refreshToken', token.refreshToken);
-    localStorage.setItem('currentUser', JSON.stringify(user));
-
-    // Navigate to dashboard after successful authentication
-    this.router.navigate(['/dashboard']);
-  }
-
-  /**
-   * Set only token data (for refresh)
-   */
-  private setTokenData(token: AuthToken): void {
-    this._authToken.set(token.accessToken);
-    localStorage.setItem('authToken', token.accessToken);
-    localStorage.setItem('refreshToken', token.refreshToken);
+  private setTokenData(tokenData: {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  }): void {
+    this._authToken.set(tokenData.accessToken);
+    localStorage.setItem('authToken', tokenData.accessToken);
+    localStorage.setItem('refreshToken', tokenData.refreshToken);
   }
 
   /**

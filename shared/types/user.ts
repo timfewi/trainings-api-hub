@@ -1,7 +1,7 @@
 // shared/types/user.ts
 
 /**
- * User authentication interface
+ * User authentication interface (GitHub OAuth)
  */
 export interface User {
   id: string;
@@ -9,27 +9,11 @@ export interface User {
   username: string;
   firstName: string;
   lastName: string;
+  githubId: string;
+  avatarUrl?: string;
+  githubUrl?: string;
   createdAt: Date;
   updatedAt: Date;
-}
-
-/**
- * User registration request interface
- */
-export interface UserRegistrationRequest {
-  email: string;
-  username: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-}
-
-/**
- * User login request interface
- */
-export interface UserLoginRequest {
-  email: string;
-  password: string;
 }
 
 /**
@@ -45,7 +29,7 @@ export interface AuthToken {
 /**
  * User profile response interface
  */
-export interface UserProfile extends Omit<User, 'password'> {
-  instanceCount: number;
+export interface UserProfile extends User {
+  instanceCount?: number;
   lastActiveAt?: Date;
 }
