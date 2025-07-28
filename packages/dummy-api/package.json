@@ -8,8 +8,12 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "test": "jest",
-    "docker:build": "docker build -t dummy-api .",
-    "docker:run": "docker run -p 3001:3001 dummy-api"
+    "docker:build": "docker build -t timfewi/dummy-api:latest .",
+    "docker:build-prod": "docker build -t timfewi/dummy-api:production .",
+    "docker:push": "docker push timfewi/dummy-api:latest",
+    "docker:push-prod": "docker push timfewi/dummy-api:production",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src/**/*.ts"
   },
   "dependencies": {
     "@trainings-api-hub/shared": "file:../../shared",
@@ -18,7 +22,9 @@
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
     "@faker-js/faker": "^8.4.1",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "swagger-ui-express": "^5.0.0",
+    "swagger-jsdoc": "^6.2.8"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -26,6 +32,8 @@
     "@types/morgan": "^1.9.9",
     "@types/uuid": "^9.0.7",
     "@types/node": "^20.11.5",
+    "@types/swagger-ui-express": "^4.1.6",
+    "@types/swagger-jsdoc": "^6.0.4",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3",
     "jest": "^29.7.0",
