@@ -11,7 +11,31 @@ export function categoryRoutes(dataService: DataService): Router {
   const router = Router();
 
   /**
-   * GET /categories - Get all categories
+   * @swagger
+   * /categories:
+   *   get:
+   *     tags: [Categories]
+   *     summary: Get all categories
+   *     description: Retrieve all product categories available in the store
+   *     responses:
+   *       200:
+   *         description: List of categories retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiResponse'
+   *                 - type: object
+   *                   properties:
+   *                     data:
+   *                       type: array
+   *                       items:
+   *                         $ref: '#/components/schemas/ProductCategory'
+   *                     total:
+   *                       type: integer
+   *                       description: Total number of categories
+   *       500:
+   *         $ref: '#/components/responses/InternalServerError'
    */
   router.get('/', (req: Request, res: Response) => {
     try {
@@ -29,7 +53,38 @@ export function categoryRoutes(dataService: DataService): Router {
   });
 
   /**
-   * GET /categories/:id - Get category by ID
+   * @swagger
+   * /categories/{id}:
+   *   get:
+   *     tags: [Categories]
+   *     summary: Get category by ID
+   *     description: Retrieve a specific category by its unique identifier
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: Category unique identifier
+   *     responses:
+   *       200:
+   *         description: Category retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiResponse'
+   *                 - type: object
+   *                   properties:
+   *                     data:
+   *                       $ref: '#/components/schemas/ProductCategory'
+   *       400:
+   *         $ref: '#/components/responses/BadRequest'
+   *       404:
+   *         $ref: '#/components/responses/NotFound'
+   *       500:
+   *         $ref: '#/components/responses/InternalServerError'
    */
   router.get('/:id', (req: Request, res: Response) => {
     try {

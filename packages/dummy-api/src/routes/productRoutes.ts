@@ -11,7 +11,38 @@ export function productRoutes(dataService: DataService): Router {
   const router = Router();
 
   /**
-   * GET /products - Get all products with optional category filter
+   * @swagger
+   * /products:
+   *   get:
+   *     tags: [Products]
+   *     summary: Get all products
+   *     description: Retrieve all products with optional category filtering
+   *     parameters:
+   *       - in: query
+   *         name: categoryId
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: Filter products by category ID
+   *     responses:
+   *       200:
+   *         description: List of products retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiResponse'
+   *                 - type: object
+   *                   properties:
+   *                     data:
+   *                       type: array
+   *                       items:
+   *                         $ref: '#/components/schemas/Product'
+   *                     total:
+   *                       type: integer
+   *                       description: Total number of products
+   *       500:
+   *         $ref: '#/components/responses/InternalServerError'
    */
   router.get('/', (req: Request, res: Response) => {
     try {
@@ -30,7 +61,38 @@ export function productRoutes(dataService: DataService): Router {
   });
 
   /**
-   * GET /products/:id - Get product by ID
+   * @swagger
+   * /products/{id}:
+   *   get:
+   *     tags: [Products]
+   *     summary: Get product by ID
+   *     description: Retrieve a specific product by its unique identifier
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: Product unique identifier
+   *     responses:
+   *       200:
+   *         description: Product retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiResponse'
+   *                 - type: object
+   *                   properties:
+   *                     data:
+   *                       $ref: '#/components/schemas/Product'
+   *       400:
+   *         $ref: '#/components/responses/BadRequest'
+   *       404:
+   *         $ref: '#/components/responses/NotFound'
+   *       500:
+   *         $ref: '#/components/responses/InternalServerError'
    */
   router.get('/:id', (req: Request, res: Response) => {
     try {
@@ -58,7 +120,46 @@ export function productRoutes(dataService: DataService): Router {
   });
 
   /**
-   * GET /products/category/:categoryId - Get products by category
+   * @swagger
+   * /products/category/{categoryId}:
+   *   get:
+   *     tags: [Products]
+   *     summary: Get products by category
+   *     description: Retrieve all products belonging to a specific category
+   *     parameters:
+   *       - in: path
+   *         name: categoryId
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: Category unique identifier
+   *     responses:
+   *       200:
+   *         description: Products retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               allOf:
+   *                 - $ref: '#/components/schemas/ApiResponse'
+   *                 - type: object
+   *                   properties:
+   *                     data:
+   *                       type: array
+   *                       items:
+   *                         $ref: '#/components/schemas/Product'
+   *                     category:
+   *                       type: string
+   *                       description: Category name
+   *                     total:
+   *                       type: integer
+   *                       description: Total number of products in category
+   *       400:
+   *         $ref: '#/components/responses/BadRequest'
+   *       404:
+   *         $ref: '#/components/responses/NotFound'
+   *       500:
+   *         $ref: '#/components/responses/InternalServerError'
    */
   router.get('/category/:categoryId', (req: Request, res: Response) => {
     try {

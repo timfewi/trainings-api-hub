@@ -12,6 +12,7 @@ import {
   DummyUser,
   Address,
 } from '../types';
+import { ApiConfig, DataTheme } from '../config';
 
 /**
  * In-memory data service for generating and managing fake e-commerce data
@@ -22,16 +23,68 @@ export class DataService {
   private cart: ShoppingCart | null = null;
   private orders: Order[] = [];
   private users: DummyUser[] = [];
+  private initialized = false;
+  private readonly config: ApiConfig;
+
+  constructor(config: ApiConfig) {
+    this.config = config;
+
+    // Set random seed if provided for reproducible data
+    if (config.randomSeed) {
+      const seed = Number(config.randomSeed);
+      if (!Number.isNaN(seed) && Number.isFinite(seed)) {
+        faker.seed(seed);
+      } else {
+        // Fallback to a default seed for reproducibility
+        faker.seed(12345);
+        console.warn(
+          `[DataService] Provided randomSeed "${config.randomSeed}" is not a valid number. Using fallback seed 12345.`
+        );
+      }
+    }
+  }
 
   /**
    * Initialize the data service with fake data
    */
   async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    console.log(`🔄 Initializing data service with theme: ${this.config.dataTheme}`);
+
     this.generateCategories();
     this.generateProducts();
     this.generateUsers();
     this.initializeCart();
     this.generateOrders();
+
+    this.initialized = true;
+    console.log(
+      `✅ Data service initialized with ${this.products.length} products in ${this.categories.length} categories`
+    );
+  }
+
+  /**
+   * Get initialization status
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
+   * Get data generation statistics
+   */
+  getStats() {
+    return {
+      initialized: this.initialized,
+      theme: this.config.dataTheme,
+      productCount: this.products.length,
+      categoryCount: this.categories.length,
+      userCount: this.users.length,
+      orderCount: this.orders.length,
+    };
   }
 
   /**
@@ -200,50 +253,54 @@ export class DataService {
   }
 
   /**
-   * Generate fake product categories
+   * Generate fake product categories based on theme
    */
   private generateCategories(): void {
-    const categoryNames = [
-      'Electronics',
-      'Clothing',
-      'Books',
-      'Home & Garden',
-      'Sports & Outdoors',
-      'Health & Beauty',
-      'Toys & Games',
-      'Automotive',
-    ];
+    const categoryData = this.getCategoryDataByTheme(this.config.dataTheme);
+    const targetCount = Math.min(this.config.categoryCount, categoryData.length);
 
-    this.categories = categoryNames.map(name => ({
+    const selectedCategories = faker.helpers.arrayElements(categoryData, {
+      min: targetCount,
+      max: targetCount,
+    });
+
+    this.categories = selectedCategories.map(name => ({
       id: uuidv4(),
       name,
-      description: faker.commerce.productDescription(),
+      description: this.generateCategoryDescription(name, this.config.dataTheme),
       imageUrl: faker.image.url(),
     }));
   }
 
   /**
-   * Generate fake products
+   * Generate fake products based on configuration
    */
   private generateProducts(): void {
     this.products = [];
 
-    this.categories.forEach(category => {
-      const productCount = faker.number.int({ min: 5, max: 15 });
+    // Distribute total product count across all categories
+    const totalProductCount = this.config.productCount;
+    const categoryCount = this.categories.length;
+    const baseProductsPerCategory = Math.floor(totalProductCount / categoryCount);
+    const remainingProducts = totalProductCount % categoryCount;
 
-      for (let i = 0; i < productCount; i++) {
+    this.categories.forEach((category, index) => {
+      // Distribute remaining products among first few categories
+      const productsForThisCategory = baseProductsPerCategory + (index < remainingProducts ? 1 : 0);
+
+      for (let i = 0; i < productsForThisCategory; i++) {
         const product: Product = {
           id: uuidv4(),
-          name: faker.commerce.productName(),
-          description: faker.commerce.productDescription(),
-          price: Number(faker.commerce.price({ min: 10, max: 1000 })),
+          name: this.generateProductName(category.name, this.config.dataTheme),
+          description: this.generateProductDescription(category.name, this.config.dataTheme),
+          price: this.generateProductPrice(category.name, this.config.dataTheme),
           categoryId: category.id,
           category,
           imageUrl: faker.image.url(),
           inStock: faker.datatype.boolean(0.8), // 80% chance in stock
           stockQuantity: faker.number.int({ min: 0, max: 100 }),
           sku: faker.string.alphanumeric(8).toUpperCase(),
-          tags: faker.helpers.arrayElements(['new', 'sale', 'popular', 'featured', 'limited']),
+          tags: this.generateProductTags(category.name, this.config.dataTheme),
           createdAt: faker.date.past(),
           updatedAt: new Date(),
         };
@@ -254,10 +311,10 @@ export class DataService {
   }
 
   /**
-   * Generate fake users
+   * Generate fake users based on configuration
    */
   private generateUsers(): void {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < this.config.userCount; i++) {
       const user: DummyUser = {
         id: uuidv4(),
         email: faker.internet.email(),
@@ -303,10 +360,10 @@ export class DataService {
   }
 
   /**
-   * Generate some sample orders
+   * Generate some sample orders based on configuration
    */
   private generateOrders(): void {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < this.config.orderCount; i++) {
       const randomProducts = faker.helpers.arrayElements(this.products, { min: 1, max: 4 });
       const items: CartItem[] = randomProducts.map(product => ({
         productId: product.id,
@@ -347,5 +404,239 @@ export class DataService {
 
       this.orders.push(order);
     }
+  }
+
+  /**
+   * Get category names based on data theme
+   */
+  private getCategoryDataByTheme(theme: DataTheme): string[] {
+    const categoryMap: Record<DataTheme, string[]> = {
+      electronics: [
+        'Smartphones & Tablets',
+        'Laptops & Computers',
+        'Audio & Headphones',
+        'Smart Home',
+        'Gaming',
+        'Cameras & Photography',
+        'Wearables',
+        'Accessories',
+      ],
+      fashion: [
+        "Men's Clothing",
+        "Women's Clothing",
+        'Shoes & Footwear',
+        'Accessories',
+        'Bags & Luggage',
+        'Jewelry & Watches',
+        'Activewear',
+        'Formal Wear',
+      ],
+      books: [
+        'Fiction',
+        'Non-Fiction',
+        'Science & Technology',
+        'Business & Economics',
+        'Health & Fitness',
+        'Arts & Entertainment',
+        "Children's Books",
+        'Educational',
+      ],
+      automotive: [
+        'Car Parts',
+        'Motorcycle Parts',
+        'Tools & Equipment',
+        'Car Care',
+        'Interior Accessories',
+        'Exterior Accessories',
+        'Performance Parts',
+        'Safety & Security',
+      ],
+      home: [
+        'Furniture',
+        'Kitchen & Dining',
+        'Bedding & Bath',
+        'Home Decor',
+        'Garden & Outdoor',
+        'Appliances',
+        'Storage & Organization',
+        'Lighting',
+      ],
+      beauty: [
+        'Skincare',
+        'Makeup',
+        'Hair Care',
+        'Fragrances',
+        'Personal Care',
+        'Tools & Accessories',
+        "Men's Grooming",
+        'Natural & Organic',
+      ],
+      sports: [
+        'Fitness Equipment',
+        'Outdoor Sports',
+        'Team Sports',
+        'Water Sports',
+        'Winter Sports',
+        'Athletic Wear',
+        'Sports Nutrition',
+        'Recovery & Wellness',
+      ],
+      general: [
+        'Electronics',
+        'Clothing',
+        'Books',
+        'Home & Garden',
+        'Sports & Outdoors',
+        'Health & Beauty',
+        'Toys & Games',
+        'Automotive',
+      ],
+    };
+
+    return categoryMap[theme] || categoryMap.general;
+  }
+
+  /**
+   * Generate category description based on theme
+   */
+  private generateCategoryDescription(categoryName: string, theme: DataTheme): string {
+    const themeDescriptions: Record<DataTheme, (name: string) => string> = {
+      electronics: name =>
+        `Discover the latest ${name.toLowerCase()} with cutting-edge technology and innovative features.`,
+      fashion: name =>
+        `Explore our stylish collection of ${name.toLowerCase()} featuring the latest trends and timeless classics.`,
+      books: name =>
+        `Immerse yourself in our extensive ${name.toLowerCase()} collection, carefully curated for every reader.`,
+      automotive: name =>
+        `Premium ${name.toLowerCase()} designed for performance, reliability, and safety on the road.`,
+      home: name =>
+        `Transform your living space with our beautiful ${name.toLowerCase()} collection.`,
+      beauty: name =>
+        `Enhance your natural beauty with our premium ${name.toLowerCase()} products.`,
+      sports: name =>
+        `Elevate your athletic performance with professional-grade ${name.toLowerCase()}.`,
+      general: name => `High-quality ${name.toLowerCase()} for all your needs.`,
+    };
+
+    return themeDescriptions[theme]?.(categoryName) || themeDescriptions.general(categoryName);
+  }
+
+  /**
+   * Generate product name based on category and theme
+   */
+  private generateProductName(categoryName: string, theme: DataTheme): string {
+    const productNameGenerators: Record<DataTheme, (category: string) => string> = {
+      electronics: category => {
+        const prefixes = ['Pro', 'Ultra', 'Smart', 'Elite', 'Premium'];
+        const suffixes = ['X', 'Plus', 'Max', 'Pro', 'Elite'];
+        return `${faker.helpers.arrayElement(prefixes)} ${faker.commerce.productName()} ${faker.helpers.arrayElement(suffixes)}`;
+      },
+      fashion: category => {
+        const brands = ['Style', 'Elegant', 'Classic', 'Modern', 'Trendy'];
+        return `${faker.helpers.arrayElement(brands)} ${faker.commerce.productName()}`;
+      },
+      books: category => {
+        return `${faker.lorem.words(3)} ${faker.helpers.arrayElement(['Guide', 'Handbook', 'Manual', 'Reference', 'Complete Works'])}`;
+      },
+      automotive: category => {
+        const types = ['Performance', 'Premium', 'Heavy-Duty', 'Professional', 'OEM'];
+        return `${faker.helpers.arrayElement(types)} ${faker.commerce.productName()}`;
+      },
+      home: category => {
+        const styles = ['Modern', 'Classic', 'Rustic', 'Contemporary', 'Vintage'];
+        return `${faker.helpers.arrayElement(styles)} ${faker.commerce.productName()}`;
+      },
+      beauty: category => {
+        const qualities = ['Luxurious', 'Natural', 'Hydrating', 'Anti-Aging', 'Organic'];
+        return `${faker.helpers.arrayElement(qualities)} ${faker.commerce.productName()}`;
+      },
+      sports: category => {
+        const levels = ['Professional', 'Elite', 'Training', 'Competition', 'Premium'];
+        return `${faker.helpers.arrayElement(levels)} ${faker.commerce.productName()}`;
+      },
+      general: () => faker.commerce.productName(),
+    };
+
+    return (
+      productNameGenerators[theme]?.(categoryName) || productNameGenerators.general(categoryName)
+    );
+  }
+
+  /**
+   * Generate product description based on category and theme
+   */
+  private generateProductDescription(categoryName: string, theme: DataTheme): string {
+    const baseDescription = faker.commerce.productDescription();
+
+    const themeDescriptions: Record<DataTheme, string[]> = {
+      electronics: [
+        'Advanced technology',
+        'Latest innovation',
+        'Cutting-edge design',
+        'High performance',
+      ],
+      fashion: ['Stylish design', 'Premium materials', 'Comfortable fit', 'Latest fashion trends'],
+      books: ['Comprehensive content', 'Expert insights', 'Detailed analysis', 'Essential reading'],
+      automotive: [
+        'Durable construction',
+        'Precision engineering',
+        'Reliable performance',
+        'Safety certified',
+      ],
+      home: ['Beautiful design', 'Quality craftsmanship', 'Functional style', 'Perfect fit'],
+      beauty: ['Gentle formula', 'Natural ingredients', 'Proven results', 'Dermatologist tested'],
+      sports: [
+        'Professional grade',
+        'Enhanced performance',
+        'Durable materials',
+        'Competition ready',
+      ],
+      general: ['High quality', 'Great value', 'Reliable performance', 'Customer favorite'],
+    };
+
+    const additionalFeatures = themeDescriptions[theme] || themeDescriptions.general;
+    const features = faker.helpers.arrayElements(additionalFeatures, { min: 2, max: 3 });
+
+    return `${baseDescription} Features: ${features.join(', ')}.`;
+  }
+
+  /**
+   * Generate product price based on category and theme
+   */
+  private generateProductPrice(categoryName: string, theme: DataTheme): number {
+    const priceRanges: Record<DataTheme, { min: number; max: number }> = {
+      electronics: { min: 50, max: 2000 },
+      fashion: { min: 20, max: 500 },
+      books: { min: 10, max: 100 },
+      automotive: { min: 25, max: 1500 },
+      home: { min: 30, max: 800 },
+      beauty: { min: 15, max: 200 },
+      sports: { min: 25, max: 600 },
+      general: { min: 10, max: 1000 },
+    };
+
+    const range = priceRanges[theme] || priceRanges.general;
+    return Number(faker.commerce.price({ min: range.min, max: range.max }));
+  }
+
+  /**
+   * Generate product tags based on category and theme
+   */
+  private generateProductTags(categoryName: string, theme: DataTheme): string[] {
+    const commonTags = ['new', 'sale', 'popular', 'featured'];
+
+    const themeTags: Record<DataTheme, string[]> = {
+      electronics: ['tech', 'smart', 'wireless', 'premium', 'innovation'],
+      fashion: ['style', 'trendy', 'comfortable', 'designer', 'seasonal'],
+      books: ['bestseller', 'educational', 'reference', 'classic', 'paperback'],
+      automotive: ['performance', 'oem', 'replacement', 'upgrade', 'certified'],
+      home: ['decor', 'functional', 'modern', 'space-saving', 'durable'],
+      beauty: ['natural', 'organic', 'anti-aging', 'moisturizing', 'cruelty-free'],
+      sports: ['professional', 'training', 'outdoor', 'lightweight', 'ergonomic'],
+      general: ['quality', 'value', 'reliable', 'essential'],
+    };
+
+    const availableTags = [...commonTags, ...(themeTags[theme] || themeTags.general)];
+    return faker.helpers.arrayElements(availableTags, { min: 2, max: 4 });
   }
 }
