@@ -472,7 +472,10 @@ export function createSwaggerConfig(config: ApiConfig) {
         },
       ],
     },
-    apis: ['./src/routes/*.ts', './src/index.ts'],
+    apis: [
+      require('path').resolve(__dirname, '../routes/*.ts'),
+      require('path').resolve(__dirname, '../index.ts')
+    ],
   };
 
   return swaggerJsdoc(options);

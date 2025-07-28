@@ -31,7 +31,16 @@ export class DataService {
 
     // Set random seed if provided for reproducible data
     if (config.randomSeed) {
-      faker.seed(parseInt(config.randomSeed, 10));
+      const seed = Number(config.randomSeed);
+      if (!Number.isNaN(seed) && Number.isFinite(seed)) {
+        faker.seed(seed);
+      } else {
+        // Fallback to a default seed for reproducibility
+        faker.seed(12345);
+        console.warn(
+          `[DataService] Provided randomSeed "${config.randomSeed}" is not a valid number. Using fallback seed 12345.`
+        );
+      }
     }
   }
 
@@ -260,19 +269,10 @@ export class DataService {
       name,
       description: this.generateCategoryDescription(name, this.config.dataTheme),
       imageUrl: faker.image.url(),
-    }));
-  }
-
-  /**
-   * Generate fake products based on configuration
-   */
-  private generateProducts(): void {
-    this.products = [];
-
     this.categories.forEach(category => {
-      const productCount = this.config.productCount;
+      const productsPerCategory = this.config.productCount;
 
-      for (let i = 0; i < productCount; i++) {
+      for (let i = 0; i < productsPerCategory; i++) {
         const product: Product = {
           id: uuidv4(),
           name: this.generateProductName(category.name, this.config.dataTheme),
@@ -283,6 +283,15 @@ export class DataService {
           imageUrl: faker.image.url(),
           inStock: faker.datatype.boolean(0.8), // 80% chance in stock
           stockQuantity: faker.number.int({ min: 0, max: 100 }),
+          sku: faker.string.alphanumeric(8).toUpperCase(),
+          tags: this.generateProductTags(category.name, this.config.dataTheme),
+          createdAt: faker.date.past(),
+          updatedAt: new Date(),
+        };
+
+        this.products.push(product);
+      }
+    });
           sku: faker.string.alphanumeric(8).toUpperCase(),
           tags: this.generateProductTags(category.name, this.config.dataTheme),
           createdAt: faker.date.past(),
