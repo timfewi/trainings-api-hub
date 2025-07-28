@@ -269,10 +269,26 @@ export class DataService {
       name,
       description: this.generateCategoryDescription(name, this.config.dataTheme),
       imageUrl: faker.image.url(),
-    this.categories.forEach(category => {
-      const productsPerCategory = this.config.productCount;
+    }));
+  }
 
-      for (let i = 0; i < productsPerCategory; i++) {
+  /**
+   * Generate fake products based on configuration
+   */
+  private generateProducts(): void {
+    this.products = [];
+
+    // Distribute total product count across all categories
+    const totalProductCount = this.config.productCount;
+    const categoryCount = this.categories.length;
+    const baseProductsPerCategory = Math.floor(totalProductCount / categoryCount);
+    const remainingProducts = totalProductCount % categoryCount;
+
+    this.categories.forEach((category, index) => {
+      // Distribute remaining products among first few categories
+      const productsForThisCategory = baseProductsPerCategory + (index < remainingProducts ? 1 : 0);
+
+      for (let i = 0; i < productsForThisCategory; i++) {
         const product: Product = {
           id: uuidv4(),
           name: this.generateProductName(category.name, this.config.dataTheme),
@@ -283,15 +299,6 @@ export class DataService {
           imageUrl: faker.image.url(),
           inStock: faker.datatype.boolean(0.8), // 80% chance in stock
           stockQuantity: faker.number.int({ min: 0, max: 100 }),
-          sku: faker.string.alphanumeric(8).toUpperCase(),
-          tags: this.generateProductTags(category.name, this.config.dataTheme),
-          createdAt: faker.date.past(),
-          updatedAt: new Date(),
-        };
-
-        this.products.push(product);
-      }
-    });
           sku: faker.string.alphanumeric(8).toUpperCase(),
           tags: this.generateProductTags(category.name, this.config.dataTheme),
           createdAt: faker.date.past(),
